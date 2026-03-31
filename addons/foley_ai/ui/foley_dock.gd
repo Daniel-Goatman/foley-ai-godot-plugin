@@ -541,7 +541,7 @@ func _build_prompt_card() -> Control:
 	queue_actions.add_child(_batch_clear_button)
 
 	_batch_hint_label = Label.new()
-	_batch_hint_label.text = "Queue runs from top to bottom. Add prompts one at a time."
+	_batch_hint_label.text = "Queue runs from top to bottom. Press Enter, click Add, or click Generate to include the pending line."
 	_batch_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_batch_hint_label.add_theme_color_override("font_color", COLOR_TEXT_MUTED)
 	_batch_hint_label.visible = false
@@ -1530,7 +1530,7 @@ func _refresh_batch_queue_ui() -> void:
 	for i in range(_batch_prompts.size()):
 		_batch_queue_list.add_item("%d. %s" % [i + 1, _batch_prompts[i]])
 		var item_index := _batch_queue_list.get_item_count() - 1
-		_batch_queue_list.set_item_tooltip(item_index, "")
+		_batch_queue_list.set_item_tooltip(item_index, _batch_prompts[i])
 
 	var has_items := _batch_prompts.size() > 0
 	if _batch_remove_button != null:
@@ -1560,8 +1560,20 @@ func _on_save_api_key_pressed() -> void:
 func _batch_prompt_lines() -> PackedStringArray:
 	var prompts := PackedStringArray()
 	for prompt in _batch_prompts:
-		prompts.append(str(prompt))
+		var normalized := str(prompt).strip_edges()
+		if normalized.is_empty():
+			continue
+		prompts.append(normalized)
 	return prompts
+
+
+func _consume_pending_batch_prompt() -> void:
+	if _batch_entry_edit == null:
+		return
+	var pending := _batch_entry_edit.text.strip_edges()
+	if pending.is_empty():
+		return
+	_add_batch_prompt(pending)
 
 
 func _push_toast(message: String) -> void:
@@ -2083,13 +2095,14 @@ func _run_batch_generation() -> void:
 		_set_error("Wait for the current generation task to finish.")
 		return
 
+	_consume_pending_batch_prompt()
 	var prompts := _batch_prompt_lines()
 	if prompts.is_empty():
 		_set_error("Batch mode is enabled but no prompts were provided.")
 		return
 
-	_is_running_batch = true
 	var base_form := _build_form_from_inputs()
+	_is_running_batch = true
 	var total := prompts.size()
 	var imported_total := 0
 	var failed_total := 0
@@ -2105,11 +2118,13 @@ func _run_batch_generation() -> void:
 			_set_status("Batch generation canceled at %d/%d." % [index + 1, total])
 			_push_toast("Batch generation canceled.")
 			_is_running_batch = false
+			apply_form(base_form)
 			_set_busy_state(false)
 			return
 		await get_tree().process_frame
 
 	_is_running_batch = false
+	apply_form(base_form)
 	_set_busy_state(false)
 	_set_status("Batch finished: imported %d clip(s), failed %d variation(s)." % [imported_total, failed_total])
 	_push_toast("Batch generation finished.")

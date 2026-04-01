@@ -33,6 +33,8 @@ const COLOR_ITEM_HOVER := Color(0.9058, 0.9530, 0.9020, 1.0) # #E7F3E6
 const COLOR_SHADOW := Color(0.2588, 0.2353, 0.3176, 0.75) # #423C51
 const COLOR_HARD_SHADOW := Color(0.3647, 0.3412, 0.4196, 0.34) # rgba(93, 87, 107, 0.34)
 const COLOR_SLIDER_SHADOW := Color(0.1765, 0.2510, 0.3569, 0.60)
+const FOLEY_HOME_URL := "https://www.foley-ai.com/"
+const FOLEY_HOME_URL_WITH_SOURCE := "https://www.foley-ai.com/?source=godot-plugin"
 const DEFAULT_PROMPT_CHIPS := [
 	"Medieval sword clashing",
 	"Footsteps on gravel",
@@ -54,13 +56,11 @@ var _is_authenticated := false
 var _auth_status_dot: ColorRect
 var _auth_status_label: Label
 var _auth_helper_label: Label
+var _auth_helper_link: LinkButton
 var _auth_refresh_button: Button
 var _token_label: Label
 var _buy_tokens_button: Button
-var _api_key_edit: LineEdit
-var _save_api_key_button: Button
-var _api_key_row: HBoxContainer
-var _prompt_edit: TextEdit
+var _prompt_edit: LineEdit
 var _prompt_chip_container: HFlowContainer
 var _recent_prompt_label: Label
 var _recent_prompt_chips: HFlowContainer
@@ -76,6 +76,8 @@ var _batch_queue_list: ItemList
 var _batch_hint_label: Label
 var _variations_spin: SpinBox
 var _variations_label: Label
+var _advanced_settings_button: Button
+var _advanced_settings_container: VBoxContainer
 var _influence_slider: HSlider
 var _influence_label: Label
 var _duration_toggle: CheckBox
@@ -382,28 +384,19 @@ func _build_header() -> Control:
 	account_body.add_child(_token_label)
 
 	_auth_helper_label = Label.new()
-	_auth_helper_label.text = "Set your Foley API key below or in Project Settings > foley_ai/api_key."
+	_auth_helper_label.text = "Get an API key from Foley AI, then set foley_ai/api_key in Project Settings."
 	_auth_helper_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_auth_helper_label.add_theme_color_override("font_color", COLOR_TEXT_MUTED)
 	account_body.add_child(_auth_helper_label)
 
-	_api_key_row = HBoxContainer.new()
-	_api_key_row.add_theme_constant_override("separation", 6)
-	account_body.add_child(_api_key_row)
-
-	_api_key_edit = LineEdit.new()
-	_api_key_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_api_key_edit.placeholder_text = "API key"
-	_api_key_edit.secret = true
-	_style_input(_api_key_edit)
-	_api_key_edit.text_submitted.connect(_on_api_key_submitted)
-	_api_key_row.add_child(_api_key_edit)
-
-	_save_api_key_button = Button.new()
-	_save_api_key_button.text = "Save Key"
-	_style_button(_save_api_key_button, "secondary")
-	_save_api_key_button.pressed.connect(_on_save_api_key_pressed)
-	_api_key_row.add_child(_save_api_key_button)
+	_auth_helper_link = LinkButton.new()
+	_auth_helper_link.text = "Open foley-ai.com"
+	_auth_helper_link.tooltip_text = FOLEY_HOME_URL
+	_auth_helper_link.add_theme_color_override("font_color", COLOR_PRIMARY_BLUE)
+	_auth_helper_link.add_theme_color_override("font_hover_color", COLOR_PRIMARY_BLUE_HOVER)
+	_auth_helper_link.add_theme_color_override("font_pressed_color", COLOR_PRIMARY_BLUE_HOVER)
+	_auth_helper_link.pressed.connect(_open_foley_home_url)
+	account_body.add_child(_auth_helper_link)
 
 	var button_row := HBoxContainer.new()
 	button_row.add_theme_constant_override("separation", 6)
@@ -428,11 +421,11 @@ func _build_prompt_card() -> Control:
 	card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var body := _card_body(card)
 
-	_prompt_edit = TextEdit.new()
-	_prompt_edit.custom_minimum_size = Vector2(0, 120)
-	_prompt_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_configure_nested_text_edit(_prompt_edit)
+	_prompt_edit = LineEdit.new()
+	_prompt_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_prompt_edit.placeholder_text = "Example: heavy leather satchel dropped onto wet stone floor in a cave"
 	_style_input(_prompt_edit)
+	_prompt_edit.add_theme_color_override("font_placeholder_color", Color(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b, 0.52))
 	body.add_child(_prompt_edit)
 
 	var hint := Label.new()
@@ -625,10 +618,28 @@ func _build_settings_card() -> Control:
 		format_popup.add_theme_icon_override("radio_unchecked_disabled", _create_popup_selection_icon(false))
 	format_group.add_child(_format_option)
 
+	_advanced_settings_button = Button.new()
+	_advanced_settings_button.toggle_mode = true
+	_style_button(_advanced_settings_button, "secondary")
+	_advanced_settings_button.toggled.connect(_on_advanced_settings_toggled)
+	body.add_child(_advanced_settings_button)
+
+	_advanced_settings_container = VBoxContainer.new()
+	_advanced_settings_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_advanced_settings_container.add_theme_constant_override("separation", 7)
+	body.add_child(_advanced_settings_container)
+
+	var advanced_grid := GridContainer.new()
+	advanced_grid.columns = 2
+	advanced_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	advanced_grid.add_theme_constant_override("h_separation", 5)
+	advanced_grid.add_theme_constant_override("v_separation", 5)
+	_advanced_settings_container.add_child(advanced_grid)
+
 	var influence_group := VBoxContainer.new()
 	influence_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	influence_group.add_theme_constant_override("separation", 3)
-	_settings_grid.add_child(influence_group)
+	advanced_grid.add_child(influence_group)
 
 	var influence_title := Label.new()
 	influence_title.text = "Prompt Influence"
@@ -652,7 +663,7 @@ func _build_settings_card() -> Control:
 	var duration_group := VBoxContainer.new()
 	duration_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	duration_group.add_theme_constant_override("separation", 3)
-	_settings_grid.add_child(duration_group)
+	advanced_grid.add_child(duration_group)
 
 	var duration_title := Label.new()
 	duration_title.text = "Duration"
@@ -700,7 +711,9 @@ func _build_settings_card() -> Control:
 	_create_subfolder_toggle.text = "Create prompt subfolder"
 	_style_checkbox(_create_subfolder_toggle)
 	_create_subfolder_toggle.button_pressed = true
-	body.add_child(_create_subfolder_toggle)
+	_advanced_settings_container.add_child(_create_subfolder_toggle)
+
+	_set_advanced_settings_expanded(false)
 
 	var separator := HSeparator.new()
 	body.add_child(separator)
@@ -1043,10 +1056,18 @@ func _style_input(control: Control) -> void:
 
 func _style_option_button(option: OptionButton) -> void:
 	var normal := _build_button_style(COLOR_INPUT_BG, COLOR_ACCENT)
-	var hover := _build_button_style(COLOR_CHIP_HOVER, COLOR_PANEL_BORDER)
+	var hover := _build_button_style(COLOR_CHIP_HOVER, COLOR_PRIMARY_BLUE)
+	var pressed := _build_button_style(COLOR_CHIP_HOVER, COLOR_PRIMARY_BLUE)
+	var focus := StyleBoxEmpty.new()
 	option.add_theme_stylebox_override("normal", normal)
+	option.add_theme_stylebox_override("normal_mirrored", normal)
 	option.add_theme_stylebox_override("hover", hover)
-	option.add_theme_stylebox_override("pressed", hover)
+	option.add_theme_stylebox_override("hover_mirrored", hover)
+	option.add_theme_stylebox_override("pressed", pressed)
+	option.add_theme_stylebox_override("pressed_mirrored", pressed)
+	option.add_theme_stylebox_override("hover_pressed", pressed)
+	option.add_theme_stylebox_override("hover_pressed_mirrored", pressed)
+	option.add_theme_stylebox_override("focus", focus)
 	option.add_theme_stylebox_override("disabled", normal)
 	var font := COLOR_TEXT
 	option.add_theme_color_override("font_color", font)
@@ -1539,22 +1560,8 @@ func _refresh_batch_queue_ui() -> void:
 		_batch_clear_button.disabled = not has_items
 
 
-func _on_api_key_submitted(_text: String) -> void:
-	_on_save_api_key_pressed()
-
-
-func _on_save_api_key_pressed() -> void:
-	if _api_key_edit == null:
-		return
-	var api_key := _api_key_edit.text.strip_edges()
-	if api_key.is_empty():
-		_set_error("API key cannot be empty.")
-		return
-	FoleySettings.save_api_key(_editor_settings(), api_key)
-	_api_key_edit.clear()
-	_refresh_key_status()
-	_refresh_account()
-	_set_status("API key saved for this editor project.")
+func _open_foley_home_url() -> void:
+	OS.shell_open(FOLEY_HOME_URL)
 
 
 func _batch_prompt_lines() -> PackedStringArray:
@@ -1601,22 +1608,11 @@ func _hide_insufficient_tokens_toast() -> void:
 
 
 func _refresh_key_status() -> void:
-	var project_setting_key := str(ProjectSettings.get_setting(FoleySettings.KEY_API_KEY_LEGACY, "")).strip_edges()
-	var has_project_key := not project_setting_key.is_empty()
 	var api_key := FoleySettings.get_api_key(_editor_settings())
 	var has_key := not api_key.is_empty()
 	if not has_key:
 		_is_authenticated = false
 	_set_auth_ui(_is_authenticated, has_key)
-	if _api_key_edit != null:
-		if has_project_key:
-			_api_key_edit.placeholder_text = "Using Project Settings key"
-		elif has_key:
-			_api_key_edit.placeholder_text = "API key saved"
-		else:
-			_api_key_edit.placeholder_text = "API key"
-		if has_key:
-			_api_key_edit.clear()
 
 
 func _refresh_account(silent: bool = false) -> void:
@@ -1628,7 +1624,7 @@ func _refresh_account(silent: bool = false) -> void:
 		_token_label.text = "Tokens --"
 		_hide_insufficient_tokens_toast()
 		if not silent:
-			_set_status("Set foley_ai/api_key in Project Settings or use the save field above.")
+			_set_status("Get an API key from %s, then set foley_ai/api_key in Project Settings." % FOLEY_HOME_URL)
 		_update_cost_label()
 		return
 
@@ -1974,10 +1970,6 @@ func _set_busy_state(is_busy: bool) -> void:
 		_save_preset_button.disabled = busy_any
 	if _remove_preset_button != null:
 		_remove_preset_button.disabled = busy_any
-	if _api_key_edit != null:
-		_api_key_edit.editable = not is_busy
-	if _save_api_key_button != null:
-		_save_api_key_button.disabled = is_busy
 	if _insufficient_tokens_button != null:
 		_insufficient_tokens_button.disabled = is_busy
 	if _batch_entry_edit != null:
@@ -2063,6 +2055,18 @@ func _on_variations_changed(value: float) -> void:
 
 func _on_influence_changed(value: float) -> void:
 	_influence_label.text = "Prompt influence: %.1f (Lower = precise, higher = creative)" % value
+
+
+func _on_advanced_settings_toggled(enabled: bool) -> void:
+	_set_advanced_settings_expanded(enabled)
+
+
+func _set_advanced_settings_expanded(expanded: bool) -> void:
+	if _advanced_settings_button != null:
+		_advanced_settings_button.button_pressed = expanded
+		_advanced_settings_button.text = "Hide Advanced Settings" if expanded else "Show Advanced Settings"
+	if _advanced_settings_container != null:
+		_advanced_settings_container.visible = expanded
 
 
 func _on_duration_toggled(enabled: bool) -> void:
@@ -2287,7 +2291,7 @@ func _account_token_cost() -> int:
 
 
 func _account_checkout_url() -> String:
-	var fallback := "https://www.foley-ai.com/?source=godot-plugin"
+	var fallback := FOLEY_HOME_URL_WITH_SOURCE
 	var url := str(_account_state.get("checkoutUrl", _account_state.get("checkout_url", fallback))).strip_edges()
 	return fallback if url.is_empty() else url
 
@@ -2319,16 +2323,13 @@ func _set_auth_ui(is_authenticated: bool, has_key: bool) -> void:
 			_auth_helper_label.visible = false
 		elif not has_key:
 			_auth_helper_label.visible = true
-			_auth_helper_label.text = "No API key found. Set foley_ai/api_key in Project Settings or save one here."
+			_auth_helper_label.text = "No API key found. Get one from Foley AI, then set foley_ai/api_key in Project Settings."
 		else:
 			_auth_helper_label.visible = true
-			_auth_helper_label.text = "Authentication failed. Check foley_ai/api_key in Project Settings." if has_project_key else "Authentication failed. Set foley_ai/api_key in Project Settings to override the saved key."
-	if _api_key_row != null:
-		_api_key_row.visible = not has_key
+			_auth_helper_label.text = "Authentication failed. Check foley_ai/api_key in Project Settings or get a fresh key from Foley AI." if has_project_key else "Authentication failed. Verify foley_ai/api_key in Project Settings or get a fresh key from Foley AI."
+	if _auth_helper_link != null:
+		_auth_helper_link.visible = not authenticated
 	if _auth_refresh_button != null:
-		_auth_refresh_button.visible = has_key
+		_auth_refresh_button.visible = true
 	if _buy_tokens_button != null:
 		_buy_tokens_button.visible = authenticated
-	if _save_api_key_button != null:
-		_save_api_key_button.visible = not has_key
-		_save_api_key_button.text = "Save Key"

@@ -6,7 +6,7 @@ effects directly inside the editor.
 ## Requirements
 
 - Godot 4.6
-- A Foley AI API key
+- A Foley AI API key from [foley-ai.com](https://www.foley-ai.com/)
 
 ## Features
 
@@ -21,7 +21,7 @@ effects directly inside the editor.
 
 1. Copy `addons/foley_ai` into your Godot project.
 2. Enable the plugin in `Project Settings > Plugins`.
-3. Save your Foley AI API key in the plugin panel or set `foley_ai/api_key`.
+3. Get an API key from [foley-ai.com](https://www.foley-ai.com/), then save it in the plugin panel or set `foley_ai/api_key`.
 
 ## Repository Notes
 

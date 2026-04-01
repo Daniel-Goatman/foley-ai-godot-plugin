@@ -186,26 +186,34 @@ static func calculate_cost(variations: int, token_cost_per_generation: int) -> i
 
 
 static func get_api_key(editor_settings: EditorSettings = null) -> String:
-	var project_setting_key := str(ProjectSettings.get_setting(KEY_API_KEY_LEGACY, "")).strip_edges()
-	if not project_setting_key.is_empty():
-		return project_setting_key
-
 	var resolved := _resolve_editor_settings(editor_settings)
 	if resolved != null:
 		var metadata_value := str(resolved.get_project_metadata(META_SECTION, META_API_KEY, "")).strip_edges()
 		if not metadata_value.is_empty():
 			return metadata_value
+
+	var project_setting_key := str(ProjectSettings.get_setting(KEY_API_KEY_LEGACY, "")).strip_edges()
+	if not project_setting_key.is_empty():
+		if resolved != null:
+			resolved.set_project_metadata(META_SECTION, META_API_KEY, project_setting_key)
+		ProjectSettings.set_setting(KEY_API_KEY_LEGACY, "")
+		ProjectSettings.save()
+		return project_setting_key
 	return ""
 
 
 static func save_api_key(editor_settings: EditorSettings = null, api_key: String = "") -> void:
 	var normalized := api_key.strip_edges()
+	ProjectSettings.set_setting(KEY_API_KEY_LEGACY, "")
+	ProjectSettings.save()
 	var resolved := _resolve_editor_settings(editor_settings)
 	if resolved != null:
 		resolved.set_project_metadata(META_SECTION, META_API_KEY, normalized)
 
 
 static func clear_api_key(editor_settings: EditorSettings = null) -> void:
+	ProjectSettings.set_setting(KEY_API_KEY_LEGACY, "")
+	ProjectSettings.save()
 	var resolved := _resolve_editor_settings(editor_settings)
 	if resolved != null:
 		resolved.set_project_metadata(META_SECTION, META_API_KEY, "")

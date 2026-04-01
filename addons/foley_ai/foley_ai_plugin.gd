@@ -274,30 +274,33 @@ func _queue_focus_generator_panel(attempt: int = 0) -> void:
 
 
 func _ensure_plugin_settings() -> void:
+	var is_dirty := false
+	if not ProjectSettings.has_setting(FoleySettings.KEY_API_KEY_LEGACY):
+		ProjectSettings.set_setting(FoleySettings.KEY_API_KEY_LEGACY, "")
+		is_dirty = true
 	ProjectSettings.add_property_info({
 		"name": FoleySettings.KEY_API_KEY_LEGACY,
 		"type": TYPE_STRING,
 		"hint": PROPERTY_HINT_PASSWORD
 	})
-	if not ProjectSettings.has_setting(FoleySettings.KEY_API_KEY_LEGACY):
-		ProjectSettings.set_setting(FoleySettings.KEY_API_KEY_LEGACY, "")
-		ProjectSettings.save()
 	ProjectSettings.set_initial_value(FoleySettings.KEY_API_KEY_LEGACY, "")
 	ProjectSettings.set_as_basic(FoleySettings.KEY_API_KEY_LEGACY, true)
 	ProjectSettings.set_as_internal(FoleySettings.KEY_API_KEY_LEGACY, false)
 
+	if not ProjectSettings.has_setting(KEY_DOCK_LOCATION):
+		ProjectSettings.set_setting(KEY_DOCK_LOCATION, DOCK_LOCATION_RIGHT)
+		is_dirty = true
 	ProjectSettings.add_property_info({
 		"name": KEY_DOCK_LOCATION,
 		"type": TYPE_STRING,
 		"hint": PROPERTY_HINT_ENUM,
 		"hint_string": "%s,%s" % [DOCK_LOCATION_BOTTOM, DOCK_LOCATION_RIGHT]
 	})
-	if not ProjectSettings.has_setting(KEY_DOCK_LOCATION):
-		ProjectSettings.set_setting(KEY_DOCK_LOCATION, DOCK_LOCATION_RIGHT)
-		ProjectSettings.save()
 	ProjectSettings.set_initial_value(KEY_DOCK_LOCATION, DOCK_LOCATION_RIGHT)
 	ProjectSettings.set_as_basic(KEY_DOCK_LOCATION, false)
 	ProjectSettings.set_as_internal(KEY_DOCK_LOCATION, true)
+	if is_dirty:
+		ProjectSettings.save()
 
 
 func _load_dock_location() -> String:
